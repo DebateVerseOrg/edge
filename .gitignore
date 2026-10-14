@@ -1,0 +1,2 @@
+# TLS keys and ACME state live only on the server
+certbot/

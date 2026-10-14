@@ -1,0 +1,46 @@
+# edge — the only thing on this host that binds 80/443.
+# Terminates TLS and routes each hostname/path to an app over that app's own
+# network (edge-<app>). Apps never publish host ports and can't reach each other.
+#
+#   docker compose up -d                        # start / apply compose changes
+#   docker compose exec nginx nginx -s reload   # apply sites/ or routes/ changes
+#   scripts/renew.sh                            # certificate renewal (weekly cron)
+
+name: edge
+
+services:
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./conf.d:/etc/nginx/conf.d:ro
+      - ./sites:/etc/nginx/sites:ro
+      - ./routes:/etc/nginx/routes:ro
+      - ./snippets:/etc/nginx/snippets:ro
+      - ./certbot/conf:/etc/letsencrypt:ro
+      - ./certbot/www:/var/www/certbot:ro
+    networks:
+      - edge-market-sentinel
+      - edge-insurance-mcp
+    restart: always
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # On-demand only (profile "tools"): docker compose run --rm certbot <args>
+  certbot:
+    image: certbot/certbot:v5.6.0
+    profiles: ["tools"]
+    volumes:
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+
+# One external network per app; create each before first `up`:
+#   docker network create edge-<app>
+networks:
+  edge-market-sentinel:
+    external: true
+  edge-insurance-mcp:
+    external: true
